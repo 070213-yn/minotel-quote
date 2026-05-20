@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex,nofollow">
+<title>見積書発行ツール - minotel</title>
+<!-- PDF生成ライブラリ（html2pdf = html2canvas + jsPDF）。ブラウザのフォントを使うので日本語もそのまま出力される -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
+<style>
+  :root{
+    --line:#333;
+    --head:#4472C4;
+    --soft:#DDEBF7;
+    --amount:#FFF2CC;
+    --bg:#f3f4f6;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:"Yu Gothic","游ゴシック",-apple-system,"Hiragino Kaku Gothic ProN","Meiryo",sans-serif;background:var(--bg);color:#111;}
+  /* 画面を左（入力）右（プレビュー）の2分割にする */
+  .app{display:flex;gap:20px;align-items:flex-start;padding:20px;max-width:1500px;margin:0 auto;}
+  .panel{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.1);}
+  .form{flex:0 0 420px;padding:18px;position:sticky;top:20px;max-height:calc(100vh - 40px);overflow-y:auto;}
+  .preview-area{flex:1 1 auto;display:flex;flex-direction:column;align-items:center;gap:14px;}
+  h1{font-size:18px;margin:0 0 4px;}
+  .sub{font-size:12px;color:#666;margin:0 0 16px;}
+  fieldset{border:1px solid #e2e2e2;border-radius:8px;margin:0 0 14px;padding:12px 12px 4px;}
+  legend{font-size:12px;font-weight:bold;color:#444;padding:0 6px;}
+  label{display:block;font-size:12px;color:#555;margin:0 0 10px;}
+  label span{display:block;margin-bottom:3px;}
+  input,textarea,select{width:100%;padding:7px 8px;border:1px solid #ccc;border-radius:6px;font-size:13px;font-family:inherit;}
+  textarea{resize:vertical;min-height:54px;}
+  .row2{display:flex;gap:8px;}
+  .row2 > *{flex:1;}
+  /* 明細テーブルの入力 */
+  table.items{width:100%;border-collapse:collapse;font-size:12px;}
+  table.items th{font-size:11px;color:#666;font-weight:normal;padding:2px;text-align:left;}
+  table.items td{padding:2px;}
+  table.items input{padding:5px 6px;}
+  .col-name{width:42%;}
+  .col-qty,.col-unit{width:13%;}
+  .col-price{width:22%;}
+  .col-del{width:10%;text-align:center;}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:none;border-radius:7px;cursor:pointer;font-size:13px;font-weight:bold;padding:9px 12px;}
+  .btn-add{background:#eef2ff;color:#3949ab;width:100%;margin-top:4px;}
+  .btn-del{background:#fde8e8;color:#c0392b;padding:4px 8px;font-size:14px;border-radius:6px;}
+  .btn-pdf{background:#1a8754;color:#fff;font-size:16px;padding:14px;width:100%;}
+  .btn-pdf:hover{background:#157347;}
+  .btn-pdf:disabled{background:#9bbfae;cursor:wait;}
+  .note{font-size:11px;color:#888;margin-top:8px;line-height:1.5;}
+
+  /* ===== A4見積書プレビュー ===== */
+  .sheet{width:210mm;min-height:297mm;background:#fff;padding:14mm 14mm 12mm;box-shadow:0 2px 12px rgba(0,0,0,.18);
+         font-size:10.5pt;color:#000;line-height:1.4;}
+  .sheet .title{text-align:center;font-size:30pt;font-weight:bold;letter-spacing:.5em;margin:0 0 2mm;padding-left:.5em;}
+  .topbar{display:flex;justify-content:space-between;align-items:flex-start;}
+  .topbar .meta{font-size:10pt;text-align:right;}
+  .topbar .meta div{margin-bottom:2px;}
+  .topbar .meta b{display:inline-block;min-width:64px;text-align:right;margin-right:8px;color:#444;font-weight:normal;}
+  .addressee{font-size:15pt;font-weight:bold;border-bottom:1.5px solid #000;padding-bottom:2mm;min-width:80mm;display:inline-block;}
+  .lead{margin:4mm 0 3mm;font-size:10.5pt;}
+  .midcols{display:flex;justify-content:space-between;gap:8mm;margin-bottom:4mm;}
+  .midcols .left{flex:1;}
+  .midcols .right{flex:0 0 62mm;}
+  .kv{display:flex;border:1px solid var(--line);border-top:none;}
+  .kv:first-child{border-top:1px solid var(--line);}
+  .kv .k{flex:0 0 24mm;background:var(--soft);font-weight:bold;text-align:center;padding:2mm 1mm;border-right:1px solid var(--line);}
+  .kv .v{flex:1;padding:2mm 2mm;}
+  .amount-box{display:flex;border:2px solid #000;margin-top:3mm;}
+  .amount-box .k{flex:0 0 30mm;background:var(--amount);font-weight:bold;font-size:13pt;text-align:center;display:flex;align-items:center;justify-content:center;border-right:2px solid #000;}
+  .amount-box .v{flex:1;background:var(--amount);text-align:right;font-size:18pt;font-weight:bold;padding:3mm 3mm;}
+  .amount-box .v small{font-size:9pt;font-weight:normal;margin-left:4px;}
+  .issuer{font-size:9.5pt;line-height:1.5;position:relative;}
+  .issuer .brand{font-size:13pt;font-weight:bold;margin-bottom:1mm;}
+  .seal{position:absolute;top:0;right:0;width:16mm;height:16mm;border:1px solid #999;color:#bbb;font-size:8pt;display:flex;align-items:flex-start;justify-content:center;padding-top:1mm;}
+  table.detail{width:100%;border-collapse:collapse;margin-top:1mm;}
+  table.detail th{background:var(--head);color:#fff;font-weight:bold;border:1px solid var(--line);padding:2mm 1mm;font-size:10pt;}
+  table.detail td{border:1px solid var(--line);padding:1.8mm 2mm;font-size:10pt;height:7mm;}
+  .t-no{width:9%;text-align:center;}
+  .t-name{width:43%;}
+  .t-qty{width:10%;text-align:center;}
+  .t-unit{width:9%;text-align:center;}
+  .t-price{width:14%;text-align:right;}
+  .t-amt{width:15%;text-align:right;}
+  .totals{margin-top:-1px;}
+  .totals table{width:100%;border-collapse:collapse;}
+  .totals td{border:1px solid var(--line);padding:1.8mm 2mm;font-size:10pt;}
+  .totals .lbl{text-align:right;width:85%;}
+  .totals .val{text-align:right;}
+  .totals .grand .lbl,.totals .grand .val{background:var(--soft);font-weight:bold;}
+  .remark-h{margin-top:4mm;background:var(--soft);border:1px solid var(--line);font-weight:bold;text-align:center;padding:1.5mm;}
+  .remark-b{border:1px solid var(--line);border-top:none;min-height:18mm;padding:2mm;white-space:pre-wrap;font-size:9.5pt;}
+  .bank{margin-top:4mm;display:flex;border:1px solid var(--line);}
+  .bank .k{flex:0 0 24mm;background:var(--soft);font-weight:bold;text-align:center;padding:2mm 1mm;border-right:1px solid var(--line);}
+  .bank .v{flex:1;padding:2mm;}
+
+  @media (max-width:1100px){
+    .app{flex-direction:column;}
+    .form{position:static;flex-basis:auto;width:100%;max-height:none;}
+    .sheet{transform-origin:top center;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ===== 入力フォーム ===== -->
+  <div class="panel form">
+    <h1>見積書発行ツール</h1>
+    <p class="sub">minotel / 近藤信吾</p>
+
+    <fieldset>
+      <legend>基本情報</legend>
+      <div class="row2">
+        <label><span>見積番号</span><input id="f-no"></label>
+        <label><span>発行日</span><input id="f-date" type="date"></label>
+      </div>
+      <label><span>宛先（会社名・お名前）</span><input id="f-to" placeholder="株式会社マイクロトラック"></label>
+      <label><span>敬称</span>
+        <select id="f-honor"><option>御中</option><option>様</option></select>
+      </label>
+      <label><span>件名</span><input id="f-subject" placeholder="スピーカー購入代金"></label>
+      <label><span>有効期限</span><input id="f-expiry" value="発行日より30日間"></label>
+    </fieldset>
+
+    <fieldset>
+      <legend>明細</legend>
+      <table class="items">
+        <thead><tr><th class="col-name">品名・摘要</th><th class="col-qty">数量</th><th class="col-unit">単位</th><th class="col-price">単価</th><th class="col-del"></th></tr></thead>
+        <tbody id="items"></tbody>
+      </table>
+      <button class="btn btn-add" id="btn-add">＋ 行を追加</button>
+    </fieldset>
+
+    <fieldset>
+      <legend>備考・振込先</legend>
+      <label><span>備考</span><textarea id="f-remark"></textarea></label>
+      <label><span>お振込先</span><input id="f-bank"></label>
+    </fieldset>
+
+    <fieldset>
+      <legend>発行者情報</legend>
+      <label><span>屋号</span><input id="f-brand"></label>
+      <label><span>氏名</span><input id="f-name"></label>
+      <label><span>郵便番号</span><input id="f-zip"></label>
+      <label><span>住所</span><input id="f-addr"></label>
+      <label><span>電話番号</span><input id="f-tel"></label>
+    </fieldset>
+
+    <button class="btn btn-pdf" id="btn-pdf">PDFを発行（ダウンロード）</button>
+    <p class="note">入力すると右のプレビューに即反映されます。発行者・振込先はこのブラウザに記憶され、次回も自動で入ります。</p>
+  </div>
+
+  <!-- ===== プレビュー（このままPDFになる） ===== -->
+  <div class="preview-area">
+    <div class="sheet" id="sheet"></div>
+  </div>
+</div>
+
+<script>
+// ===== 初期値（minotel固定情報） =====
+const ISSUER_DEFAULT = {
+  brand:"minotel",
+  name:"近藤 信吾",
+  zip:"〒251-0042",
+  addr:"神奈川県藤沢市辻堂新町1-16-11 104",
+  tel:"TEL: 070-448-2326",
+  bank:"楽天銀行　ベース支店（235）　普通　2940600　名義：コンドウ シンゴ"
+};
+
+const $ = id => document.getElementById(id);
+const yen = n => "¥" + Math.round(n||0).toLocaleString("ja-JP");
+const numfmt = n => (n||0).toLocaleString("ja-JP");
+
+// ===== 見積番号の自動生成（YYYYMMDD-001） =====
+function todayStr(){
+  const d=new Date();
+  const p=x=>String(x).padStart(2,"0");
+  return {iso:`${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`,
+          compact:`${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}`};
+}
+
+// ===== 明細行の管理 =====
+function addItem(name="",qty="",unit="",price=""){
+  const tb=$("items");
+  const tr=document.createElement("tr");
+  tr.innerHTML=`
+    <td><input class="i-name" value="${esc(name)}"></td>
+    <td><input class="i-qty" type="number" min="0" value="${qty}"></td>
+    <td><input class="i-unit" value="${esc(unit)}"></td>
+    <td><input class="i-price" type="number" min="0" value="${price}"></td>
+    <td class="col-del"><button class="btn-del" type="button">×</button></td>`;
+  tb.appendChild(tr);
+  tr.querySelectorAll("input").forEach(inp=>inp.addEventListener("input",render));
+  tr.querySelector(".btn-del").addEventListener("click",()=>{tr.remove();render();});
+}
+function esc(s){return String(s).replace(/"/g,"&quot;").replace(/</g,"&lt;");}
+
+function readItems(){
+  return [...$("items").querySelectorAll("tr")].map(tr=>({
+    name:tr.querySelector(".i-name").value,
+    qty:parseFloat(tr.querySelector(".i-qty").value)||0,
+    unit:tr.querySelector(".i-unit").value,
+    price:parseFloat(tr.querySelector(".i-price").value)||0,
+    hasQty:tr.querySelector(".i-qty").value!=="",
+    hasPrice:tr.querySelector(".i-price").value!==""
+  }));
+}
+
+// ===== プレビュー描画 =====
+function render(){
+  const items=readItems();
+  let subtotal=0;
+  const rows=items.map((it,i)=>{
+    const amt=(it.hasQty&&it.hasPrice)?it.qty*it.price:null;
+    if(amt!==null) subtotal+=amt;
+    return `<tr>
+      <td class="t-no">${i+1}</td>
+      <td class="t-name">${esc(it.name)}</td>
+      <td class="t-qty">${it.hasQty?numfmt(it.qty):""}</td>
+      <td class="t-unit">${esc(it.unit)}</td>
+      <td class="t-price">${it.hasPrice?numfmt(it.price):""}</td>
+      <td class="t-amt">${amt!==null?numfmt(amt):""}</td>
+    </tr>`;
+  }).join("");
+  const tax=Math.round(subtotal*0.1);
+  const total=subtotal+tax;
+
+  const honor=$("f-honor").value;
+  const dateVal=$("f-date").value;
+  const dateDisp=dateVal?dateVal.replace(/-/g,"/"):"";
+
+  $("sheet").innerHTML=`
+    <div class="title">見積書</div>
+    <div class="topbar">
+      <div></div>
+      <div class="meta">
+        <div><b>見積番号</b>${esc($("f-no").value)}</div>
+        <div><b>発行日</b>${dateDisp}</div>
+      </div>
+    </div>
+    <div><span class="addressee">${esc($("f-to").value||"　")} ${honor}</span></div>
+    <div class="lead">下記のとおりお見積り申し上げます。</div>
+    <div class="midcols">
+      <div class="left">
+        <div class="kv"><div class="k">件　名</div><div class="v">${esc($("f-subject").value)}</div></div>
+        <div class="kv"><div class="k">有効期限</div><div class="v">${esc($("f-expiry").value)}</div></div>
+        <div class="amount-box"><div class="k">御見積金額</div><div class="v">${yen(total)}<small>(税込)</small></div></div>
+      </div>
+      <div class="right">
+        <div class="issuer">
+          <div class="seal">印</div>
+          <div class="brand">${esc($("f-brand").value)}</div>
+          <div>${esc($("f-name").value)}</div>
+          <div>${esc($("f-zip").value)}</div>
+          <div>${esc($("f-addr").value)}</div>
+          <div>${esc($("f-tel").value)}</div>
+        </div>
+      </div>
+    </div>
+    <table class="detail">
+      <thead><tr>
+        <th class="t-no">No.</th><th class="t-name">品名・摘要</th><th class="t-qty">数量</th>
+        <th class="t-unit">単位</th><th class="t-price">単価</th><th class="t-amt">金額</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="totals"><table>
+      <tr><td class="lbl">小計</td><td class="val">${yen(subtotal)}</td></tr>
+      <tr><td class="lbl">消費税（10%）</td><td class="val">${yen(tax)}</td></tr>
+      <tr class="grand"><td class="lbl">合計（税込）</td><td class="val">${yen(total)}</td></tr>
+    </table></div>
+    <div class="remark-h">備考</div>
+    <div class="remark-b">${esc($("f-remark").value)}</div>
+    <div class="bank"><div class="k">お振込先</div><div class="v">${esc($("f-bank").value)}</div></div>
+  `;
+  saveSettings();
+}
+
+// ===== 発行者・振込先をブラウザに記憶 =====
+function saveSettings(){
+  const s={brand:$("f-brand").value,name:$("f-name").value,zip:$("f-zip").value,
+           addr:$("f-addr").value,tel:$("f-tel").value,bank:$("f-bank").value};
+  try{localStorage.setItem("minotel_issuer",JSON.stringify(s));}catch(e){}
+}
+function loadSettings(){
+  let s=ISSUER_DEFAULT;
+  try{const j=localStorage.getItem("minotel_issuer"); if(j) s=Object.assign({},ISSUER_DEFAULT,JSON.parse(j));}catch(e){}
+  $("f-brand").value=s.brand; $("f-name").value=s.name; $("f-zip").value=s.zip;
+  $("f-addr").value=s.addr; $("f-tel").value=s.tel; $("f-bank").value=s.bank;
+}
+
+// ===== PDF発行 =====
+function makePdf(){
+  const btn=$("btn-pdf"); btn.disabled=true; const old=btn.textContent; btn.textContent="作成中…";
+  const to=($("f-to").value||"宛先").replace(/[\\\/:*?"<>|]/g,"");
+  const no=($("f-no").value||"見積").replace(/[\\\/:*?"<>|]/g,"");
+  const fname=`${to}様_見積書_${no}_minotel.pdf`;
+  const opt={
+    margin:0,
+    filename:fname,
+    image:{type:"jpeg",quality:0.98},
+    html2canvas:{scale:3,useCORS:true,backgroundColor:"#ffffff"},
+    jsPDF:{unit:"mm",format:"a4",orientation:"portrait"}
+  };
+  html2pdf().set(opt).from($("sheet")).save().then(()=>{
+    btn.disabled=false; btn.textContent=old;
+  }).catch(e=>{
+    alert("PDF作成でエラーが発生しました: "+e.message);
+    btn.disabled=false; btn.textContent=old;
+  });
+}
+
+// ===== 初期化 =====
+function init(){
+  loadSettings();
+  const t=todayStr();
+  $("f-date").value=t.iso;
+  $("f-no").value=`${t.compact}-001`;
+  // サンプル明細を1行（消したり編集して使う）
+  addItem("","","台","");
+  // フォーム全体の入力で再描画
+  ["f-no","f-date","f-to","f-honor","f-subject","f-expiry","f-remark","f-bank","f-brand","f-name","f-zip","f-addr","f-tel"]
+    .forEach(id=>$(id).addEventListener("input",render));
+  $("btn-add").addEventListener("click",()=>{addItem("","","台","");render();});
+  $("btn-pdf").addEventListener("click",makePdf);
+  render();
+}
+init();
+</script>
+</body>
+</html>
