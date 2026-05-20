@@ -120,6 +120,7 @@
       </label>
       <label><span>件名</span><input id="f-subject" placeholder="スピーカー購入代金"></label>
       <label><span>有効期限</span><input id="f-expiry" value="発行日より30日間"></label>
+      <label><span>支払条件</span><input id="f-pay" value="ご注文確定後、銀行振込にてお支払いください（前払い）"></label>
     </fieldset>
 
     <fieldset>
@@ -244,6 +245,7 @@ function render(){
       <div class="left">
         <div class="kv"><div class="k">件　名</div><div class="v">${esc($("f-subject").value)}</div></div>
         <div class="kv"><div class="k">有効期限</div><div class="v">${esc($("f-expiry").value)}</div></div>
+        <div class="kv"><div class="k">支払条件</div><div class="v">${esc($("f-pay").value)}</div></div>
         <div class="amount-box"><div class="k">御見積金額</div><div class="v">${yen(total)}<small>(税込)</small></div></div>
       </div>
       <div class="right">
@@ -319,7 +321,7 @@ function init(){
   // サンプル明細を1行（消したり編集して使う）
   addItem("","","台","");
   // フォーム全体の入力で再描画
-  ["f-no","f-date","f-to","f-honor","f-subject","f-expiry","f-remark","f-bank","f-brand","f-name","f-zip","f-addr","f-tel"]
+  ["f-no","f-date","f-to","f-honor","f-subject","f-expiry","f-pay","f-remark","f-bank","f-brand","f-name","f-zip","f-addr","f-tel"]
     .forEach(id=>$(id).addEventListener("input",render));
   $("btn-add").addEventListener("click",()=>{addItem("","","台","");render();});
   $("btn-pdf").addEventListener("click",makePdf);
