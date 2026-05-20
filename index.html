@@ -430,22 +430,17 @@ function makePdf(){
   const to=($("f-to").value||"宛先").replace(/[\\\/:*?"<>|]/g,"");
   const no=($("f-no").value||"見積").replace(/[\\\/:*?"<>|]/g,"");
   const fname=`${to}様_見積書_${no}_minotel.pdf`;
-  // 内容をcanvas化し、A4縦1枚に必ず収めて配置する（2枚目の空白ページを防ぐ）
-  html2pdf().set({html2canvas:{scale:3,useCORS:true,backgroundColor:"#ffffff"}})
-    .from($("sheet")).toCanvas().get("canvas").then(canvas=>{
-      const Ctor=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;
-      const pdf=new Ctor("p","mm","a4");
-      const pw=210, ph=297;
-      let w=pw, h=canvas.height*pw/canvas.width;
-      if(h>ph){ const s=ph/h; h=ph; w=w*s; }   // 縦に長い場合は1枚に収まるよう縮小
-      const x=(pw-w)/2;
-      pdf.addImage(canvas.toDataURL("image/jpeg",0.98),"JPEG",x,0,w,h,"","FAST");
-      pdf.save(fname);
-      btn.disabled=false; btn.textContent=old;
-    }).catch(e=>{
-      alert("PDF作成でエラーが発生しました: "+e.message);
-      btn.disabled=false; btn.textContent=old;
-    });
+  // A4縦で出力。内容はA4より低いので1枚に収まり、空白2枚目は出ない
+  const opt={ margin:0, filename:fname, image:{type:"jpeg",quality:0.98},
+    html2canvas:{scale:3,useCORS:true,backgroundColor:"#ffffff"},
+    jsPDF:{unit:"mm",format:"a4",orientation:"portrait"},
+    pagebreak:{mode:["avoid-all"]} };
+  html2pdf().set(opt).from($("sheet")).save().then(()=>{
+    btn.disabled=false; btn.textContent=old;
+  }).catch(e=>{
+    alert("PDF作成でエラーが発生しました: "+e.message);
+    btn.disabled=false; btn.textContent=old;
+  });
 }
 
 // ===== 初期化 =====
