@@ -47,6 +47,10 @@
   .btn-pdf{background:#1a8754;color:#fff;font-size:16px;padding:14px;width:100%;}
   .btn-pdf:hover{background:#157347;}
   .btn-pdf:disabled{background:#9bbfae;cursor:wait;}
+  .btn-save{background:#3949ab;color:#fff;width:100%;}
+  .btn-load{background:#eef2ff;color:#3949ab;flex:1;}
+  .btn-del2{background:#fde8e8;color:#c0392b;flex:1;}
+  .btn-sub2{background:#f1f3f5;color:#444;flex:1;font-weight:normal;}
   .note{font-size:11px;color:#888;margin-top:8px;line-height:1.5;}
 
   /* ===== A4見積書プレビュー ===== */
@@ -107,6 +111,24 @@
   <div class="panel form">
     <h1>見積書発行ツール</h1>
     <p class="sub">minotel / 近藤信吾</p>
+
+    <fieldset>
+      <legend>保存・読み込み</legend>
+      <button class="btn btn-save" id="btn-save" type="button">この見積を保存する</button>
+      <label style="margin-top:10px"><span>保存した見積を開く</span>
+        <select id="saved-list"><option value="">（保存データなし）</option></select>
+      </label>
+      <div class="row2">
+        <button class="btn btn-load" id="btn-load" type="button">読み込み</button>
+        <button class="btn btn-del2" id="btn-delete" type="button">削除</button>
+      </div>
+      <div class="row2" style="margin-top:8px">
+        <button class="btn btn-sub2" id="btn-export" type="button">バックアップ書き出し</button>
+        <button class="btn btn-sub2" id="btn-import" type="button">取り込み</button>
+        <input type="file" id="file-import" accept="application/json" style="display:none">
+      </div>
+      <p class="note">「保存」はこのブラウザに記憶されます。別の端末・スマホに移すときは「バックアップ書き出し」でファイルを保存し、移した先で「取り込み」してください。</p>
+    </fieldset>
 
     <fieldset>
       <legend>基本情報</legend>
@@ -291,6 +313,111 @@ function loadSettings(){
   $("f-addr").value=s.addr; $("f-tel").value=s.tel; $("f-bank").value=s.bank;
 }
 
+// ===== 見積データの保存・読み込み =====
+const FIELD_IDS=["f-no","f-date","f-to","f-honor","f-subject","f-expiry","f-pay","f-remark","f-bank","f-brand","f-name","f-zip","f-addr","f-tel"];
+const SKEY="minotel_quotes";
+
+// 現在の入力内容をまとめて取り出す
+function collectState(){
+  const o={};
+  FIELD_IDS.forEach(id=>o[id]=$(id).value);
+  o.items=[...$("items").querySelectorAll("tr")].map(tr=>({
+    name:tr.querySelector(".i-name").value,
+    qty:tr.querySelector(".i-qty").value,
+    unit:tr.querySelector(".i-unit").value,
+    price:tr.querySelector(".i-price").value
+  }));
+  return o;
+}
+// 取り出した内容をフォームに反映する
+function applyState(o){
+  FIELD_IDS.forEach(id=>{ if(o[id]!==undefined) $(id).value=o[id]; });
+  $("items").innerHTML="";
+  const list=(o.items&&o.items.length)?o.items:[{}];
+  list.forEach(it=>addItem(it.name||"",it.qty||"",it.unit||"",it.price||""));
+  render();
+}
+
+function loadQuotes(){ try{return JSON.parse(localStorage.getItem(SKEY))||[];}catch(e){return [];} }
+function storeQuotes(arr){ try{localStorage.setItem(SKEY,JSON.stringify(arr));}catch(e){alert("保存に失敗しました（ブラウザの容量制限の可能性）");} }
+
+function refreshSavedList(selId){
+  const arr=loadQuotes().sort((a,b)=>(b.savedAt||"").localeCompare(a.savedAt||""));
+  const sel=$("saved-list");
+  if(!arr.length){ sel.innerHTML='<option value="">（保存データなし）</option>'; return; }
+  sel.innerHTML=arr.map(q=>{
+    const d=q.savedAt?q.savedAt.slice(0,16).replace("T"," "):"";
+    return `<option value="${esc(q.id)}">${esc(q.label||q.id)}（${d}）</option>`;
+  }).join("");
+  if(selId) sel.value=selId;
+}
+
+function saveQuote(){
+  const st=collectState();
+  const id=(st["f-no"]||"").trim()||("見積"+Date.now());
+  const label=`${st["f-no"]||""} ${st["f-to"]||""}`.trim()||id;
+  let arr=loadQuotes();
+  const idx=arr.findIndex(q=>q.id===id);
+  const rec={id,label,savedAt:new Date().toISOString(),data:st};
+  if(idx>=0){
+    if(!confirm(`見積番号「${id}」はすでに保存されています。上書きしますか？`)) return;
+    arr[idx]=rec;
+  }else{
+    arr.push(rec);
+  }
+  storeQuotes(arr);
+  refreshSavedList(id);
+  alert("保存しました：\n"+label);
+}
+
+function loadSelected(){
+  const id=$("saved-list").value;
+  if(!id){ alert("保存データがありません。"); return; }
+  const rec=loadQuotes().find(q=>q.id===id);
+  if(!rec){ alert("データが見つかりませんでした。"); return; }
+  applyState(rec.data);
+}
+
+function deleteSelected(){
+  const id=$("saved-list").value;
+  if(!id){ return; }
+  if(!confirm(`「${id}」を削除しますか？`)) return;
+  storeQuotes(loadQuotes().filter(q=>q.id!==id));
+  refreshSavedList();
+}
+
+// バックアップ（全保存データをJSONファイルで書き出し）
+function exportJson(){
+  const arr=loadQuotes();
+  if(!arr.length){ alert("保存データがありません。先に保存してください。"); return; }
+  const blob=new Blob([JSON.stringify(arr,null,2)],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="minotel_quotes_backup.json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+// 取り込み（JSONファイルから読み込み、同じ見積番号は上書き）
+function importJson(file){
+  const reader=new FileReader();
+  reader.onload=()=>{
+    try{
+      const incoming=JSON.parse(reader.result);
+      if(!Array.isArray(incoming)) throw new Error("形式が違います");
+      let arr=loadQuotes();
+      incoming.forEach(rec=>{
+        if(!rec||!rec.id) return;
+        const idx=arr.findIndex(q=>q.id===rec.id);
+        if(idx>=0) arr[idx]=rec; else arr.push(rec);
+      });
+      storeQuotes(arr);
+      refreshSavedList();
+      alert(`取り込みました（${incoming.length}件）。`);
+    }catch(e){ alert("取り込みに失敗しました："+e.message); }
+  };
+  reader.readAsText(file);
+}
+
 // ===== PDF発行 =====
 function makePdf(){
   const btn=$("btn-pdf"); btn.disabled=true; const old=btn.textContent; btn.textContent="作成中…";
@@ -325,6 +452,14 @@ function init(){
     .forEach(id=>$(id).addEventListener("input",render));
   $("btn-add").addEventListener("click",()=>{addItem("","","台","");render();});
   $("btn-pdf").addEventListener("click",makePdf);
+  // 保存・読み込み関連のボタン
+  $("btn-save").addEventListener("click",saveQuote);
+  $("btn-load").addEventListener("click",loadSelected);
+  $("btn-delete").addEventListener("click",deleteSelected);
+  $("btn-export").addEventListener("click",exportJson);
+  $("btn-import").addEventListener("click",()=>$("file-import").click());
+  $("file-import").addEventListener("change",e=>{ if(e.target.files[0]){ importJson(e.target.files[0]); e.target.value=""; } });
+  refreshSavedList();
   render();
 }
 init();
