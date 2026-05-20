@@ -54,7 +54,7 @@
   .note{font-size:11px;color:#888;margin-top:8px;line-height:1.5;}
 
   /* ===== A4発注書プレビュー ===== */
-  .sheet{width:210mm;min-height:297mm;background:#fff;padding:14mm 14mm 12mm;box-shadow:0 2px 12px rgba(0,0,0,.18);
+  .sheet{width:210mm;background:#fff;padding:14mm 14mm 12mm;box-shadow:0 2px 12px rgba(0,0,0,.18);
          font-size:10.5pt;color:#000;line-height:1.4;}
   .sheet .title{text-align:center;font-size:26pt;font-weight:bold;letter-spacing:.6em;margin:0 0 3mm;padding-left:.6em;}
   .topbar{display:flex;justify-content:space-between;align-items:flex-start;}
@@ -382,11 +382,19 @@ function makePdf(){
   const to=($("f-to").value||"宛先").replace(/[\\\/:*?"<>|]/g,"");
   const no=($("f-no").value||"発注").replace(/[\\\/:*?"<>|]/g,"");
   const fname=`${to}様_発注書_${no}_minotel.pdf`;
-  const opt={ margin:0, filename:fname, image:{type:"jpeg",quality:0.98},
-    html2canvas:{scale:3,useCORS:true,backgroundColor:"#ffffff"},
-    jsPDF:{unit:"mm",format:"a4",orientation:"portrait"} };
-  html2pdf().set(opt).from($("sheet")).save().then(()=>{ btn.disabled=false; btn.textContent=old; })
-    .catch(e=>{ alert("PDF作成でエラー: "+e.message); btn.disabled=false; btn.textContent=old; });
+  // 内容をcanvas化し、A4縦1枚に必ず収めて配置する（2枚目の空白ページを防ぐ）
+  html2pdf().set({html2canvas:{scale:3,useCORS:true,backgroundColor:"#ffffff"}})
+    .from($("sheet")).toCanvas().get("canvas").then(canvas=>{
+      const Ctor=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;
+      const pdf=new Ctor("p","mm","a4");
+      const pw=210, ph=297;
+      let w=pw, h=canvas.height*pw/canvas.width;
+      if(h>ph){ const s=ph/h; h=ph; w=w*s; }   // 縦に長い場合は1枚に収まるよう縮小
+      const x=(pw-w)/2;
+      pdf.addImage(canvas.toDataURL("image/jpeg",0.98),"JPEG",x,0,w,h,"","FAST");
+      pdf.save(fname);
+      btn.disabled=false; btn.textContent=old;
+    }).catch(e=>{ alert("PDF作成でエラー: "+e.message); btn.disabled=false; btn.textContent=old; });
 }
 
 // ===== 初期化 =====
