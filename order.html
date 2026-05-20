@@ -91,8 +91,10 @@
   .totals .lbl{background:var(--head);color:#fff;font-weight:bold;text-align:center;width:40%;}
   .totals .val{text-align:right;}
   .remark-h{margin-top:5mm;display:inline-block;background:#fff;border:1px solid var(--line);font-weight:bold;text-align:center;padding:1mm 8mm;}
-  .remark-b{border-bottom:1px dashed #000;min-height:8mm;padding:2mm 1mm;white-space:pre-wrap;font-size:10pt;}
-  .remark-lines{border-bottom:1px dashed #000;height:6mm;}
+  /* 備考は固定の点線罫の上に文字を重ねる（改行しても点線が消えない） */
+  .remark-box{position:relative;margin-top:0;}
+  .remark-rule{height:6.5mm;border-bottom:1px dashed #000;}
+  .remark-text{position:absolute;top:0.5mm;left:1mm;right:1mm;line-height:6.5mm;white-space:pre-wrap;font-size:10pt;}
 
   @media (max-width:1100px){
     .app{flex-direction:column;}
@@ -278,9 +280,13 @@ function render(){
       <tr><td class="lbl">合計</td><td class="val">${numfmt(total)}</td></tr>
     </table></div>
     <div class="remark-h">備考</div>
-    <div class="remark-b">${esc($("f-remark").value)}</div>
-    <div class="remark-lines"></div>
-    <div class="remark-lines"></div>
+    <div class="remark-box">
+      <div class="remark-text">${esc($("f-remark").value)}</div>
+      <div class="remark-rule"></div>
+      <div class="remark-rule"></div>
+      <div class="remark-rule"></div>
+      <div class="remark-rule"></div>
+    </div>
   `;
   saveIssuer();
 }
