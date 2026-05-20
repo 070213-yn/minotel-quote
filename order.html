@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex,nofollow">
+<title>発注書発行ツール - minotel</title>
+<!-- PDF生成ライブラリ（html2pdf = html2canvas + jsPDF） -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
+<style>
+  :root{
+    --line:#7f7f7f;
+    --head:#595959;   /* 見出し・ラベルの濃いグレー */
+    --soft:#595959;
+    --bg:#f3f4f6;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:"Yu Gothic","游ゴシック",-apple-system,"Hiragino Kaku Gothic ProN","Meiryo",sans-serif;background:var(--bg);color:#111;}
+  .app{display:flex;gap:20px;align-items:flex-start;padding:20px;max-width:1500px;margin:0 auto;}
+  .panel{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.1);}
+  .form{flex:0 0 420px;padding:18px;position:sticky;top:20px;max-height:calc(100vh - 40px);overflow-y:auto;}
+  .preview-area{flex:1 1 auto;display:flex;flex-direction:column;align-items:center;gap:14px;}
+  h1{font-size:18px;margin:0 0 4px;}
+  .sub{font-size:12px;color:#666;margin:0 0 16px;}
+  .navlinks{display:flex;gap:8px;margin:0 0 16px;}
+  .navlinks a{flex:1;text-align:center;padding:8px;border-radius:7px;font-size:13px;font-weight:bold;text-decoration:none;color:#555;background:#eef0f3;}
+  .navlinks a.active{background:#595959;color:#fff;}
+  fieldset{border:1px solid #e2e2e2;border-radius:8px;margin:0 0 14px;padding:12px 12px 4px;}
+  legend{font-size:12px;font-weight:bold;color:#444;padding:0 6px;}
+  label{display:block;font-size:12px;color:#555;margin:0 0 10px;}
+  label span{display:block;margin-bottom:3px;}
+  input,textarea,select{width:100%;padding:7px 8px;border:1px solid #ccc;border-radius:6px;font-size:13px;font-family:inherit;}
+  textarea{resize:vertical;min-height:54px;}
+  .row2{display:flex;gap:8px;}
+  .row2 > *{flex:1;}
+  table.items{width:100%;border-collapse:collapse;font-size:12px;}
+  table.items th{font-size:11px;color:#666;font-weight:normal;padding:2px;text-align:left;}
+  table.items td{padding:2px;}
+  table.items input{padding:5px 6px;}
+  .col-name{width:42%;}
+  .col-qty,.col-unit{width:13%;}
+  .col-price{width:22%;}
+  .col-del{width:10%;text-align:center;}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:none;border-radius:7px;cursor:pointer;font-size:13px;font-weight:bold;padding:9px 12px;}
+  .btn-add{background:#eef0f3;color:#444;width:100%;margin-top:4px;}
+  .btn-del{background:#fde8e8;color:#c0392b;padding:4px 8px;font-size:14px;border-radius:6px;}
+  .btn-pdf{background:#595959;color:#fff;font-size:16px;padding:14px;width:100%;}
+  .btn-pdf:hover{background:#444;}
+  .btn-pdf:disabled{background:#aaa;cursor:wait;}
+  .btn-save{background:#444;color:#fff;width:100%;}
+  .btn-load{background:#eef0f3;color:#444;flex:1;}
+  .btn-del2{background:#fde8e8;color:#c0392b;flex:1;}
+  .btn-sub2{background:#f1f3f5;color:#444;flex:1;font-weight:normal;}
+  .note{font-size:11px;color:#888;margin-top:8px;line-height:1.5;}
+
+  /* ===== A4発注書プレビュー ===== */
+  .sheet{width:210mm;min-height:297mm;background:#fff;padding:14mm 14mm 12mm;box-shadow:0 2px 12px rgba(0,0,0,.18);
+         font-size:10.5pt;color:#000;line-height:1.4;}
+  .sheet .title{text-align:center;font-size:26pt;font-weight:bold;letter-spacing:.6em;margin:0 0 3mm;padding-left:.6em;}
+  .topbar{display:flex;justify-content:space-between;align-items:flex-start;}
+  .topbar .meta{font-size:10pt;text-align:right;}
+  .topbar .meta div{margin-bottom:2px;}
+  .topbar .meta b{display:inline-block;min-width:54px;text-align:left;margin-right:10px;color:#444;font-weight:normal;}
+  .addressee{font-size:16pt;font-weight:bold;display:inline-block;}
+  .lead{margin:5mm 0 3mm;font-size:10.5pt;}
+  .midcols{display:flex;justify-content:space-between;gap:8mm;margin-bottom:3mm;}
+  .midcols .left{flex:1;}
+  .midcols .right{flex:0 0 64mm;}
+  .kv{display:flex;border:1px solid var(--line);border-top:none;}
+  .kv:first-child{border-top:1px solid var(--line);}
+  .kv .k{flex:0 0 24mm;background:var(--head);color:#fff;font-weight:bold;text-align:center;padding:2mm 1mm;border-right:1px solid var(--line);}
+  .kv .v{flex:1;padding:2mm 2mm;}
+  .amount-box{display:flex;border:1px solid var(--line);margin-top:4mm;}
+  .amount-box .k{flex:0 0 30mm;background:var(--head);color:#fff;font-weight:bold;font-size:13pt;text-align:center;display:flex;align-items:center;justify-content:center;border-right:1px solid var(--line);}
+  .amount-box .v{flex:1;text-align:left;font-size:18pt;font-weight:bold;padding:3mm 5mm;}
+  .amount-box .v small{font-size:11pt;font-weight:normal;margin-left:2px;}
+  .issuer{font-size:10pt;line-height:1.6;}
+  .issuer .brand{font-weight:bold;}
+  table.detail{width:100%;border-collapse:collapse;margin-top:1mm;}
+  table.detail th{background:var(--head);color:#fff;font-weight:bold;border:1px solid var(--line);padding:2mm 1mm;font-size:10pt;}
+  table.detail td{border:1px solid var(--line);padding:1.8mm 2mm;font-size:10pt;height:7mm;}
+  .t-no{display:none;}
+  .t-name{width:48%;}
+  .t-qty{width:11%;text-align:center;}
+  .t-unit{width:11%;text-align:center;}
+  .t-price{width:14%;text-align:right;}
+  .t-amt{width:16%;text-align:right;}
+  .totals{display:flex;justify-content:flex-end;margin-top:-1px;}
+  .totals table{width:41%;border-collapse:collapse;}
+  .totals td{border:1px solid var(--line);padding:1.6mm 2mm;font-size:10pt;}
+  .totals .lbl{background:var(--head);color:#fff;font-weight:bold;text-align:center;width:40%;}
+  .totals .val{text-align:right;}
+  .remark-h{margin-top:5mm;display:inline-block;background:#fff;border:1px solid var(--line);font-weight:bold;text-align:center;padding:1mm 8mm;}
+  .remark-b{border-bottom:1px dashed #000;min-height:8mm;padding:2mm 1mm;white-space:pre-wrap;font-size:10pt;}
+  .remark-lines{border-bottom:1px dashed #000;height:6mm;}
+
+  @media (max-width:1100px){
+    .app{flex-direction:column;}
+    .form{position:static;flex-basis:auto;width:100%;max-height:none;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ===== 入力フォーム ===== -->
+  <div class="panel form">
+    <h1>発注書発行ツール</h1>
+    <p class="sub">minotel / 近藤信吾</p>
+    <div class="navlinks"><a href="index.html">見積書</a><a href="order.html" class="active">注文書（発注書）</a></div>
+
+    <fieldset>
+      <legend>保存・読み込み</legend>
+      <button class="btn btn-save" id="btn-save" type="button">この発注書を保存する</button>
+      <label style="margin-top:10px"><span>保存した発注書を開く</span>
+        <select id="saved-list"><option value="">（保存データなし）</option></select>
+      </label>
+      <div class="row2">
+        <button class="btn btn-load" id="btn-load" type="button">読み込み</button>
+        <button class="btn btn-del2" id="btn-delete" type="button">削除</button>
+      </div>
+      <div class="row2" style="margin-top:8px">
+        <button class="btn btn-sub2" id="btn-export" type="button">バックアップ書き出し</button>
+        <button class="btn btn-sub2" id="btn-import" type="button">取り込み</button>
+        <input type="file" id="file-import" accept="application/json" style="display:none">
+      </div>
+      <p class="note">「保存」はこのブラウザに記憶されます。別端末へ移すときは「バックアップ書き出し」→移した先で「取り込み」してください。</p>
+    </fieldset>
+
+    <fieldset>
+      <legend>基本情報</legend>
+      <div class="row2">
+        <label><span>発注番号（No）</span><input id="f-no"></label>
+        <label><span>発注日</span><input id="f-date" type="date"></label>
+      </div>
+      <label><span>宛先（会社名・お名前）</span><input id="f-to" placeholder="株式会社マイクロトラック"></label>
+      <label><span>敬称</span>
+        <select id="f-honor"><option>御中</option><option>様</option></select>
+      </label>
+      <label><span>件名</span><input id="f-subject" placeholder="MNC-CL01/雲形ステレオスピーカー"></label>
+      <div class="row2">
+        <label><span>納期</span><input id="f-delivery" placeholder="2026/4/30"></label>
+        <label><span>支払期限</span><input id="f-paydue" placeholder="2026/5/31"></label>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>明細</legend>
+      <table class="items">
+        <thead><tr><th class="col-name">摘要</th><th class="col-qty">数量</th><th class="col-unit">単位</th><th class="col-price">単価</th><th class="col-del"></th></tr></thead>
+        <tbody id="items"></tbody>
+      </table>
+      <button class="btn btn-add" id="btn-add">＋ 行を追加</button>
+    </fieldset>
+
+    <fieldset>
+      <legend>備考</legend>
+      <label><span>備考</span><textarea id="f-remark"></textarea></label>
+    </fieldset>
+
+    <fieldset>
+      <legend>発注者情報</legend>
+      <label><span>屋号</span><input id="f-brand"></label>
+      <label><span>氏名</span><input id="f-name"></label>
+      <label><span>郵便番号</span><input id="f-zip"></label>
+      <label><span>住所</span><input id="f-addr"></label>
+      <label><span>電話番号</span><input id="f-tel"></label>
+    </fieldset>
+
+    <button class="btn btn-pdf" id="btn-pdf">PDFを発行（ダウンロード）</button>
+    <p class="note">発注者情報は見積書ツールと共通で、このブラウザに記憶されます。</p>
+  </div>
+
+  <!-- ===== プレビュー ===== -->
+  <div class="preview-area">
+    <div class="sheet" id="sheet"></div>
+  </div>
+</div>
+
+<script>
+const ISSUER_DEFAULT={
+  brand:"minotel", name:"近藤 信吾", zip:"〒251-0042",
+  addr:"神奈川県藤沢市辻堂新町1-16-11 104", tel:"TEL: 070-448-2326"
+};
+const $ = id => document.getElementById(id);
+const numfmt = n => (n||0).toLocaleString("ja-JP");
+function esc(s){return String(s).replace(/"/g,"&quot;").replace(/</g,"&lt;");}
+function todayStr(){
+  const d=new Date(); const p=x=>String(x).padStart(2,"0");
+  return {iso:`${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`};
+}
+
+// ===== 明細行 =====
+function addItem(name="",qty="",unit="",price=""){
+  const tb=$("items");
+  const tr=document.createElement("tr");
+  tr.innerHTML=`
+    <td><input class="i-name" value="${esc(name)}"></td>
+    <td><input class="i-qty" type="number" min="0" value="${qty}"></td>
+    <td><input class="i-unit" value="${esc(unit)}"></td>
+    <td><input class="i-price" type="number" min="0" value="${price}"></td>
+    <td class="col-del"><button class="btn-del" type="button">×</button></td>`;
+  tb.appendChild(tr);
+  tr.querySelectorAll("input").forEach(inp=>inp.addEventListener("input",render));
+  tr.querySelector(".btn-del").addEventListener("click",()=>{tr.remove();render();});
+}
+function readItems(){
+  return [...$("items").querySelectorAll("tr")].map(tr=>({
+    name:tr.querySelector(".i-name").value,
+    qty:parseFloat(tr.querySelector(".i-qty").value)||0,
+    unit:tr.querySelector(".i-unit").value,
+    price:parseFloat(tr.querySelector(".i-price").value)||0,
+    hasQty:tr.querySelector(".i-qty").value!=="",
+    hasPrice:tr.querySelector(".i-price").value!==""
+  }));
+}
+
+// ===== プレビュー描画 =====
+function render(){
+  const items=readItems();
+  let subtotal=0;
+  // 画像に合わせ最低6行は枠を表示する
+  const minRows=6;
+  const display=[...items];
+  while(display.length<minRows) display.push(null);
+  const rows=display.map((it,i)=>{
+    if(!it) return `<tr><td class="t-name">&nbsp;</td><td class="t-qty"></td><td class="t-unit"></td><td class="t-price"></td><td class="t-amt"></td></tr>`;
+    const amt=(it.hasQty&&it.hasPrice)?it.qty*it.price:null;
+    if(amt!==null) subtotal+=amt;
+    return `<tr>
+      <td class="t-name">${esc(it.name)}</td>
+      <td class="t-qty">${it.hasQty?numfmt(it.qty):""}</td>
+      <td class="t-unit">${esc(it.unit)}</td>
+      <td class="t-price">${it.hasPrice?numfmt(it.price):""}</td>
+      <td class="t-amt">${amt!==null?numfmt(amt):""}</td>
+    </tr>`;
+  }).join("");
+  const tax=Math.round(subtotal*0.1);
+  const total=subtotal+tax;
+  const dateVal=$("f-date").value;
+  const dateDisp=dateVal?dateVal.replace(/-/g,"/"):"";
+
+  $("sheet").innerHTML=`
+    <div class="title">発注書</div>
+    <div class="topbar">
+      <div><span class="addressee">${esc($("f-to").value||"　")} ${$("f-honor").value}</span></div>
+      <div class="meta">
+        <div><b>発注日</b>${dateDisp}</div>
+        <div><b>No</b>${esc($("f-no").value)}</div>
+      </div>
+    </div>
+    <div class="lead">下記のとおり、発注致します。</div>
+    <div class="midcols">
+      <div class="left">
+        <div class="kv"><div class="k">件　名</div><div class="v">${esc($("f-subject").value)}</div></div>
+        <div class="kv"><div class="k">納　期</div><div class="v">${esc($("f-delivery").value)}</div></div>
+        <div class="kv"><div class="k">支払期限</div><div class="v">${esc($("f-paydue").value)}</div></div>
+        <div class="amount-box"><div class="k">合　計</div><div class="v">${numfmt(total)} 円<small>（税込）</small></div></div>
+      </div>
+      <div class="right">
+        <div class="issuer">
+          <div><span class="brand">${esc($("f-brand").value)}</span>　${esc($("f-name").value)}</div>
+          <div>${esc($("f-zip").value)}</div>
+          <div>${esc($("f-addr").value)}</div>
+          <div>${esc($("f-tel").value)}</div>
+        </div>
+      </div>
+    </div>
+    <table class="detail">
+      <thead><tr>
+        <th class="t-name">摘要</th><th class="t-qty">数量</th>
+        <th class="t-unit">単位</th><th class="t-price">単価</th><th class="t-amt">金額</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="totals"><table>
+      <tr><td class="lbl">小計</td><td class="val">${numfmt(subtotal)}</td></tr>
+      <tr><td class="lbl">消費税</td><td class="val">${numfmt(tax)}</td></tr>
+      <tr><td class="lbl">合計</td><td class="val">${numfmt(total)}</td></tr>
+    </table></div>
+    <div class="remark-h">備考</div>
+    <div class="remark-b">${esc($("f-remark").value)}</div>
+    <div class="remark-lines"></div>
+    <div class="remark-lines"></div>
+  `;
+  saveIssuer();
+}
+
+// ===== 発注者情報を記憶（見積書ツールと共通キー） =====
+function saveIssuer(){
+  // 見積書側のbank等を消さないよう、既存設定とマージして保存
+  let cur={};
+  try{cur=JSON.parse(localStorage.getItem("minotel_issuer"))||{};}catch(e){}
+  cur.brand=$("f-brand").value; cur.name=$("f-name").value; cur.zip=$("f-zip").value;
+  cur.addr=$("f-addr").value; cur.tel=$("f-tel").value;
+  try{localStorage.setItem("minotel_issuer",JSON.stringify(cur));}catch(e){}
+}
+function loadIssuer(){
+  let s=ISSUER_DEFAULT;
+  try{const j=localStorage.getItem("minotel_issuer"); if(j) s=Object.assign({},ISSUER_DEFAULT,JSON.parse(j));}catch(e){}
+  $("f-brand").value=s.brand; $("f-name").value=s.name; $("f-zip").value=s.zip;
+  $("f-addr").value=s.addr; $("f-tel").value=s.tel;
+}
+
+// ===== 発注書データの保存・読み込み =====
+const FIELD_IDS=["f-no","f-date","f-to","f-honor","f-subject","f-delivery","f-paydue","f-remark","f-brand","f-name","f-zip","f-addr","f-tel"];
+const SKEY="minotel_orders";
+function collectState(){
+  const o={}; FIELD_IDS.forEach(id=>o[id]=$(id).value);
+  o.items=[...$("items").querySelectorAll("tr")].map(tr=>({
+    name:tr.querySelector(".i-name").value, qty:tr.querySelector(".i-qty").value,
+    unit:tr.querySelector(".i-unit").value, price:tr.querySelector(".i-price").value }));
+  return o;
+}
+function applyState(o){
+  FIELD_IDS.forEach(id=>{ if(o[id]!==undefined) $(id).value=o[id]; });
+  $("items").innerHTML="";
+  const list=(o.items&&o.items.length)?o.items:[{}];
+  list.forEach(it=>addItem(it.name||"",it.qty||"",it.unit||"",it.price||""));
+  render();
+}
+function loadQuotes(){ try{return JSON.parse(localStorage.getItem(SKEY))||[];}catch(e){return [];} }
+function storeQuotes(arr){ try{localStorage.setItem(SKEY,JSON.stringify(arr));}catch(e){alert("保存に失敗しました（容量制限の可能性）");} }
+function refreshSavedList(selId){
+  const arr=loadQuotes().sort((a,b)=>(b.savedAt||"").localeCompare(a.savedAt||""));
+  const sel=$("saved-list");
+  if(!arr.length){ sel.innerHTML='<option value="">（保存データなし）</option>'; return; }
+  sel.innerHTML=arr.map(q=>{
+    const d=q.savedAt?q.savedAt.slice(0,16).replace("T"," "):"";
+    return `<option value="${esc(q.id)}">${esc(q.label||q.id)}（${d}）</option>`;
+  }).join("");
+  if(selId) sel.value=selId;
+}
+function saveQuote(){
+  const st=collectState();
+  const id=(st["f-no"]||"").trim()||("発注"+Date.now());
+  const label=`${st["f-no"]||""} ${st["f-to"]||""}`.trim()||id;
+  let arr=loadQuotes(); const idx=arr.findIndex(q=>q.id===id);
+  const rec={id,label,savedAt:new Date().toISOString(),data:st};
+  if(idx>=0){ if(!confirm(`発注番号「${id}」はすでに保存されています。上書きしますか？`)) return; arr[idx]=rec; }
+  else arr.push(rec);
+  storeQuotes(arr); refreshSavedList(id); alert("保存しました：\n"+label);
+}
+function loadSelected(){
+  const id=$("saved-list").value; if(!id){ alert("保存データがありません。"); return; }
+  const rec=loadQuotes().find(q=>q.id===id); if(!rec){ alert("データが見つかりませんでした。"); return; }
+  applyState(rec.data);
+}
+function deleteSelected(){
+  const id=$("saved-list").value; if(!id) return;
+  if(!confirm(`「${id}」を削除しますか？`)) return;
+  storeQuotes(loadQuotes().filter(q=>q.id!==id)); refreshSavedList();
+}
+function exportJson(){
+  const arr=loadQuotes(); if(!arr.length){ alert("保存データがありません。"); return; }
+  const blob=new Blob([JSON.stringify(arr,null,2)],{type:"application/json"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download="minotel_orders_backup.json"; a.click(); URL.revokeObjectURL(a.href);
+}
+function importJson(file){
+  const reader=new FileReader();
+  reader.onload=()=>{
+    try{
+      const incoming=JSON.parse(reader.result);
+      if(!Array.isArray(incoming)) throw new Error("形式が違います");
+      let arr=loadQuotes();
+      incoming.forEach(rec=>{ if(!rec||!rec.id) return; const idx=arr.findIndex(q=>q.id===rec.id); if(idx>=0) arr[idx]=rec; else arr.push(rec); });
+      storeQuotes(arr); refreshSavedList(); alert(`取り込みました（${incoming.length}件）。`);
+    }catch(e){ alert("取り込みに失敗しました："+e.message); }
+  };
+  reader.readAsText(file);
+}
+
+// ===== PDF発行 =====
+function makePdf(){
+  const btn=$("btn-pdf"); btn.disabled=true; const old=btn.textContent; btn.textContent="作成中…";
+  const to=($("f-to").value||"宛先").replace(/[\\\/:*?"<>|]/g,"");
+  const no=($("f-no").value||"発注").replace(/[\\\/:*?"<>|]/g,"");
+  const fname=`${to}様_発注書_${no}_minotel.pdf`;
+  const opt={ margin:0, filename:fname, image:{type:"jpeg",quality:0.98},
+    html2canvas:{scale:3,useCORS:true,backgroundColor:"#ffffff"},
+    jsPDF:{unit:"mm",format:"a4",orientation:"portrait"} };
+  html2pdf().set(opt).from($("sheet")).save().then(()=>{ btn.disabled=false; btn.textContent=old; })
+    .catch(e=>{ alert("PDF作成でエラー: "+e.message); btn.disabled=false; btn.textContent=old; });
+}
+
+// ===== 初期化 =====
+function init(){
+  loadIssuer();
+  $("f-date").value=todayStr().iso;
+  $("f-no").value="PO-0000000001";
+  addItem("","","PCS","");
+  FIELD_IDS.forEach(id=>$(id).addEventListener("input",render));
+  $("btn-add").addEventListener("click",()=>{addItem("","","PCS","");render();});
+  $("btn-pdf").addEventListener("click",makePdf);
+  $("btn-save").addEventListener("click",saveQuote);
+  $("btn-load").addEventListener("click",loadSelected);
+  $("btn-delete").addEventListener("click",deleteSelected);
+  $("btn-export").addEventListener("click",exportJson);
+  $("btn-import").addEventListener("click",()=>$("file-import").click());
+  $("file-import").addEventListener("change",e=>{ if(e.target.files[0]){ importJson(e.target.files[0]); e.target.value=""; } });
+  refreshSavedList();
+  render();
+}
+init();
+</script>
+</body>
+</html>

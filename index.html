@@ -52,6 +52,9 @@
   .btn-del2{background:#fde8e8;color:#c0392b;flex:1;}
   .btn-sub2{background:#f1f3f5;color:#444;flex:1;font-weight:normal;}
   .note{font-size:11px;color:#888;margin-top:8px;line-height:1.5;}
+  .navlinks{display:flex;gap:8px;margin:0 0 16px;}
+  .navlinks a{flex:1;text-align:center;padding:8px;border-radius:7px;font-size:13px;font-weight:bold;text-decoration:none;color:#555;background:#eef0f3;}
+  .navlinks a.active{background:#1a8754;color:#fff;}
 
   /* ===== A4見積書プレビュー ===== */
   .sheet{width:210mm;min-height:297mm;background:#fff;padding:14mm 14mm 12mm;box-shadow:0 2px 12px rgba(0,0,0,.18);
@@ -112,6 +115,7 @@
   <div class="panel form">
     <h1>見積書発行ツール</h1>
     <p class="sub">minotel / 近藤信吾</p>
+    <div class="navlinks"><a href="index.html" class="active">見積書</a><a href="order.html">注文書（発注書）</a></div>
 
     <fieldset>
       <legend>保存・読み込み</legend>
